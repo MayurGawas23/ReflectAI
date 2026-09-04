@@ -14,7 +14,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { SystemTelemetry, UserProfile, Interaction } from '../types';
-import { fetchSystemTelemetry, registerInitialAdmin } from '../lib/firestoreService';
+import { fetchSystemTelemetry, registerInitialAdmin, isAuthorizedAdmin } from '../lib/firestoreService';
 
 interface AdminDashboardModalProps {
   user: UserProfile;
@@ -31,6 +31,11 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   onClose,
   onAdminGranted,
 }) => {
+  const isSuperAdmin = isAuthorizedAdmin(user.email);
+  if (!isSuperAdmin) {
+    return null;
+  }
+
   const [telemetry, setTelemetry] = useState<SystemTelemetry | null>(null);
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);

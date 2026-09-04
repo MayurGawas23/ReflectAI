@@ -12,7 +12,9 @@ import {
   deleteUserInteraction,
   checkIsAdmin,
   registerInitialAdmin,
-  recordTelemetryLog
+  recordTelemetryLog,
+  isAuthorizedAdmin,
+  AUTHORIZED_ADMIN_EMAIL
 } from './lib/firestoreService';
 import { getCuratedJournalSeed } from './data/seedData';
 import { Interaction, Message, ReflectionMode, UserProfile, JournalLocation } from './types';
@@ -47,17 +49,18 @@ export default function App() {
       setCurrentUser(user);
       setAuthLoading(false);
       if (user) {
-        // Auto-grant admin role for mayur.gawas4work@gmail.com or designated project email
-        if (user.email && (user.email.toLowerCase().includes('mayur.gawas') || user.email.toLowerCase().includes('mayur'))) {
+        // Admin privilege is strictly restricted to mayur.gawas4work@gmail.com
+        if (isAuthorizedAdmin(user.email)) {
           try {
-            await registerInitialAdmin(user.uid, user.email);
+            await registerInitialAdmin(user.uid, user.email!);
             setIsAdmin(true);
           } catch (e) {
-            console.warn('Auto admin grant attempt:', e);
+            console.warn('Admin grant attempt:', e);
+            const adminStatus = await checkIsAdmin(user.uid, user.email);
+            setIsAdmin(adminStatus);
           }
         } else {
-          const adminStatus = await checkIsAdmin(user.uid);
-          setIsAdmin(adminStatus);
+          setIsAdmin(false);
         }
 
         await loadInteractions(user.uid);
@@ -113,8 +116,8 @@ export default function App() {
       }
       setInteractions(curatedSeeds);
       setCurrentId(curatedSeeds[0].id);
-      if (currentUser.email) {
-        await registerInitialAdmin(currentUser.uid, currentUser.email);
+      if (isAuthorizedAdmin(currentUser.email)) {
+        await registerInitialAdmin(currentUser.uid, currentUser.email!);
         setIsAdmin(true);
       }
     } catch (e: any) {
@@ -431,20 +434,22 @@ export default function App() {
             </div>
           </div>
 
-          {/* Admin RBAC Console Trigger */}
-          <button
-            id="admin-console-btn"
-            onClick={() => setShowAdminModal(true)}
-            className={`cursor-pointer inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition ${
-              isAdmin 
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
-                : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
-            }`}
-            title="Open Admin Telemetry & Health Console"
-          >
-            <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden sm:inline">Admin Console</span>
-          </button>
+          {/* Admin RBAC Console Trigger - strictly visible only for mayur.gawas4work@gmail.com */}
+          {isAuthorizedAdmin(currentUser.email) && (
+            <button
+              id="admin-console-btn"
+              onClick={() => setShowAdminModal(true)}
+              className={`cursor-pointer inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition ${
+                isAdmin 
+                  ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                  : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
+              }`}
+              title="Open Admin Telemetry & Health Console"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden sm:inline">Admin Console</span>
+            </button>
+          )}
 
           <button
             id="signout-btn"
@@ -481,8 +486,8 @@ export default function App() {
         />
       </div>
 
-      {/* Admin RBAC & Telemetry Modal */}
-      {showAdminModal && (
+      {/* Admin RBAC & Telemetry Modal - strictly restricted to mayur.gawas4work@gmail.com */}
+      {showAdminModal && isAuthorizedAdmin(currentUser.email) && (
         <AdminDashboardModal
           user={{
             uid: currentUser.uid,

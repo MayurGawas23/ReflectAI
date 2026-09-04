@@ -84,15 +84,28 @@ export async function recordTelemetryLog(action: string, mode: string = 'general
   }
 }
 
+export const AUTHORIZED_ADMIN_EMAIL = 'mayur.gawas4work@gmail.com';
+
+export function isAuthorizedAdmin(email?: string | null): boolean {
+  if (!email) return false;
+  return email.trim().toLowerCase() === AUTHORIZED_ADMIN_EMAIL.toLowerCase();
+}
+
 /**
  * Check if the current authenticated user has administrator privileges
+ * Restricted strictly to the designated administrator (mayur.gawas4work@gmail.com)
  */
-export async function checkIsAdmin(userId: string): Promise<boolean> {
+export async function checkIsAdmin(userId: string, email?: string | null): Promise<boolean> {
   if (!userId) return false;
+  if (email && !isAuthorizedAdmin(email)) {
+    return false;
+  }
   try {
     const adminDocRef = doc(db, 'admins', userId);
     const docSnap = await getDoc(adminDocRef);
-    return docSnap.exists();
+    if (!docSnap.exists()) return false;
+    const data = docSnap.data();
+    return isAuthorizedAdmin(data?.email);
   } catch (err) {
     // If not admin, security rules will prevent or return false
     return false;
@@ -100,14 +113,19 @@ export async function checkIsAdmin(userId: string): Promise<boolean> {
 }
 
 /**
- * Grant initial admin claim to the creator/configured account if no admins exist
+ * Grant initial admin claim to the creator/configured account
+ * Restricted strictly to mayur.gawas4work@gmail.com
  */
 export async function registerInitialAdmin(userId: string, email: string): Promise<boolean> {
-  if (!userId) return false;
+  if (!userId || !email) return false;
+  if (!isAuthorizedAdmin(email)) {
+    console.warn('Admin registration blocked: user is not the designated admin.');
+    return false;
+  }
   try {
     const adminDocRef = doc(db, 'admins', userId);
     await setDoc(adminDocRef, {
-      email,
+      email: email.toLowerCase(),
       role: 'superadmin',
       grantedAt: Date.now(),
     }, { merge: true });
