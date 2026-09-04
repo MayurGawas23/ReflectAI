@@ -9,7 +9,8 @@ import {
   Search,
   CheckCircle2,
   AlertCircle,
-  MapPin
+  MapPin,
+  Database
 } from 'lucide-react';
 import { Interaction } from '../types';
 
@@ -20,6 +21,7 @@ interface SidebarProps {
   onNewReflection: () => void;
   onDeleteInteraction: (id: string, e: React.MouseEvent) => void;
   loading: boolean;
+  onSeedDemoData?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -29,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNewReflection,
   onDeleteInteraction,
   loading,
+  onSeedDemoData,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -42,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="w-80 flex-shrink-0 border-r border-stone-200 bg-white flex flex-col h-full">
       {/* New Reflection CTA */}
-      <div className="p-4 border-b border-stone-100 flex flex-col gap-3">
+      <div className="p-4 border-b border-stone-100 flex flex-col gap-2.5">
         <button
           id="new-reflection-btn"
           onClick={onNewReflection}
@@ -51,6 +54,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <Plus className="w-4 h-4" />
           <span>New Journal Entry</span>
         </button>
+
+        {onSeedDemoData && (
+          <button
+            id="seed-demo-data-btn"
+            onClick={onSeedDemoData}
+            title="Populate curated entries with locations, action items & admin metrics"
+            className="cursor-pointer w-full flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50/80 text-emerald-800 text-[11px] font-medium hover:bg-emerald-100 transition shadow-xs"
+          >
+            <Database className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Load Demo Data (Hack2skill APAC)</span>
+          </button>
+        )}
 
         {/* Search */}
         <div className="relative">

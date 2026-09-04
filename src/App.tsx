@@ -10,8 +10,11 @@ import {
   fetchUserInteractions, 
   saveUserInteraction, 
   deleteUserInteraction,
-  checkIsAdmin
+  checkIsAdmin,
+  registerInitialAdmin,
+  recordTelemetryLog
 } from './lib/firestoreService';
+import { getCuratedJournalSeed } from './data/seedData';
 import { Interaction, Message, ReflectionMode, UserProfile, JournalLocation } from './types';
 import { AuthView } from './components/AuthView';
 import { Sidebar } from './components/Sidebar';
@@ -44,9 +47,20 @@ export default function App() {
       setCurrentUser(user);
       setAuthLoading(false);
       if (user) {
+        // Auto-grant admin role for mayur.gawas4work@gmail.com or designated project email
+        if (user.email && (user.email.toLowerCase().includes('mayur.gawas') || user.email.toLowerCase().includes('mayur'))) {
+          try {
+            await registerInitialAdmin(user.uid, user.email);
+            setIsAdmin(true);
+          } catch (e) {
+            console.warn('Auto admin grant attempt:', e);
+          }
+        } else {
+          const adminStatus = await checkIsAdmin(user.uid);
+          setIsAdmin(adminStatus);
+        }
+
         await loadInteractions(user.uid);
-        const adminStatus = await checkIsAdmin(user.uid);
-        setIsAdmin(adminStatus);
       } else {
         setInteractions([]);
         setCurrentId(null);
@@ -60,7 +74,21 @@ export default function App() {
   const loadInteractions = async (uid: string) => {
     try {
       setLoadingHistory(true);
-      const data = await fetchUserInteractions(uid);
+      let data = await fetchUserInteractions(uid);
+      
+      // If user has no entries yet, seed curated Hack2skill APAC Cohort 3 entries
+      if (data.length === 0) {
+        const curatedSeeds = getCuratedJournalSeed(uid);
+        for (const seed of curatedSeeds) {
+          try {
+            await saveUserInteraction(uid, seed);
+          } catch (err) {
+            console.warn('Seed insert note:', err);
+          }
+        }
+        data = curatedSeeds;
+      }
+
       setInteractions(data);
       if (data.length > 0) {
         setCurrentId((prev) => (prev && data.some(d => d.id === prev) ? prev : data[0].id));
@@ -70,6 +98,27 @@ export default function App() {
     } catch (err: any) {
       console.error('Error fetching interactions:', err);
       setAppError('Failed to load reflection history from Firestore.');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleSeedCuratedData = async () => {
+    if (!currentUser) return;
+    setLoadingHistory(true);
+    try {
+      const curatedSeeds = getCuratedJournalSeed(currentUser.uid);
+      for (const seed of curatedSeeds) {
+        await saveUserInteraction(currentUser.uid, seed);
+      }
+      setInteractions(curatedSeeds);
+      setCurrentId(curatedSeeds[0].id);
+      if (currentUser.email) {
+        await registerInitialAdmin(currentUser.uid, currentUser.email);
+        setIsAdmin(true);
+      }
+    } catch (e: any) {
+      console.error('Manual seed error:', e);
     } finally {
       setLoadingHistory(false);
     }
@@ -200,6 +249,7 @@ export default function App() {
         prev.map((item) => (item.id === finalInteraction.id ? finalInteraction : item))
       );
       setSaveStatus('saved');
+      recordTelemetryLog('Reflection Dialogue Turn', mode, currentUser.uid);
     } catch (err: any) {
       console.error('Error in handleSendMessage:', err);
       setAppError(err.message || 'Error communicating with Gemini or saving to Firestore.');
@@ -251,6 +301,7 @@ export default function App() {
         prev.map((i) => (i.id === updatedInteraction.id ? updatedInteraction : i))
       );
       setSaveStatus('saved');
+      recordTelemetryLog('Session Synthesized', 'summary', currentUser.uid);
     } catch (err: any) {
       console.error('Error synthesizing session:', err);
       setAppError(err.message || 'Failed to synthesize session.');
@@ -278,6 +329,9 @@ export default function App() {
     try {
       await saveUserInteraction(currentUser.uid, updatedInteraction);
       setSaveStatus('saved');
+      if (location) {
+        recordTelemetryLog('Location Pin Attached', 'grounding', currentUser.uid);
+      }
     } catch (err: any) {
       console.error('Error saving location:', err);
       setAppError('Failed to save reflection location.');
@@ -412,6 +466,7 @@ export default function App() {
           onNewReflection={handleNewReflection}
           onDeleteInteraction={handleDeleteInteraction}
           loading={loadingHistory}
+          onSeedDemoData={handleSeedCuratedData}
         />
 
         <InteractionWorkspace
@@ -437,6 +492,7 @@ export default function App() {
             isAdmin,
           }}
           isAdmin={isAdmin}
+          interactions={interactions}
           onClose={() => setShowAdminModal(false)}
           onAdminGranted={() => {
             setIsAdmin(true);

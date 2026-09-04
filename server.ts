@@ -81,6 +81,12 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.json({
     status: 'ok',
     hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
+    modelFleet: {
+      primary: MODEL_FALLBACK_LADDER[0],
+      fallbacks: MODEL_FALLBACK_LADDER.slice(1),
+      geminiHealth: process.env.GEMINI_API_KEY ? 'healthy' : 'degraded'
+    },
+    uptimeSeconds: Math.floor(process.uptime()),
     timestamp: Date.now()
   });
 });

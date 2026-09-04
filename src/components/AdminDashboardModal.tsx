@@ -13,12 +13,13 @@ import {
   Clock,
   Sparkles
 } from 'lucide-react';
-import { SystemTelemetry, UserProfile } from '../types';
+import { SystemTelemetry, UserProfile, Interaction } from '../types';
 import { fetchSystemTelemetry, registerInitialAdmin } from '../lib/firestoreService';
 
 interface AdminDashboardModalProps {
   user: UserProfile;
   isAdmin: boolean;
+  interactions?: Interaction[];
   onClose: () => void;
   onAdminGranted: () => void;
 }
@@ -26,6 +27,7 @@ interface AdminDashboardModalProps {
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   user,
   isAdmin,
+  interactions = [],
   onClose,
   onAdminGranted,
 }) => {
@@ -37,7 +39,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const loadData = async () => {
     setLoading(true);
     try {
-      const data = await fetchSystemTelemetry();
+      const data = await fetchSystemTelemetry(interactions);
       setTelemetry(data);
     } catch (err) {
       console.error('Failed to load telemetry:', err);
@@ -48,7 +50,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [interactions]);
 
   const handleClaimAdmin = async () => {
     if (!user.email) return;
@@ -82,12 +84,23 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               <p className="text-[11px] text-stone-500">System health, aggregate anonymized metrics, and model status</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center space-x-1.5">
+            <button
+              onClick={loadData}
+              disabled={loading}
+              title="Refresh Live Metrics"
+              className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition cursor-pointer disabled:opacity-50 flex items-center space-x-1 text-xs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
+              <span className="hidden sm:inline text-[11px] text-stone-600 font-medium">Live Sync</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Privacy Assurance Notice */}
@@ -159,7 +172,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     {telemetry.totalReflectionsTracked}
                   </div>
                   <div className="text-[10px] text-emerald-600 mt-1 flex items-center">
-                    <span>+12% vs last week</span>
+                    <span>Live in Firestore</span>
                   </div>
                 </div>
 
@@ -171,8 +184,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   <div className="text-xl font-bold text-stone-900">
                     {telemetry.totalSynthesizedSessions}
                   </div>
-                  <div className="text-[10px] text-stone-400 mt-1">
-                    64% conversion
+                  <div className="text-[10px] text-stone-500 mt-1">
+                    {telemetry.totalReflectionsTracked > 0
+                      ? `${Math.round((telemetry.totalSynthesizedSessions / telemetry.totalReflectionsTracked) * 100)}% synthesis rate`
+                      : '0% synthesized'}
                   </div>
                 </div>
 
@@ -185,20 +200,20 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     {telemetry.totalLocationsPinned}
                   </div>
                   <div className="text-[10px] text-emerald-600 mt-1">
-                    Google Maps active
+                    Geo-grounded entries
                   </div>
                 </div>
 
                 <div className="p-3.5 rounded-xl border border-stone-200 bg-white shadow-xs">
                   <div className="flex items-center justify-between text-stone-500 mb-1">
-                    <span className="text-[11px] font-medium">Active Users</span>
+                    <span className="text-[11px] font-medium">Active Accounts</span>
                     <Users className="w-3.5 h-3.5 text-indigo-500" />
                   </div>
                   <div className="text-xl font-bold text-stone-900">
                     {telemetry.activeUsersCount}
                   </div>
-                  <div className="text-[10px] text-stone-400 mt-1">
-                    Federated Google Auth
+                  <div className="text-[10px] text-stone-500 mt-1">
+                    RBAC Superadmins
                   </div>
                 </div>
               </div>

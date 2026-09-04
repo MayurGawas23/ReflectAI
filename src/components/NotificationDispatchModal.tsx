@@ -23,7 +23,7 @@ export const NotificationDispatchModal: React.FC<NotificationDispatchModalProps>
   onClose,
 }) => {
   const [targetService, setTargetService] = useState<'slack' | 'discord' | 'webhook'>('slack');
-  const [webhookUrl, setWebhookUrl] = useState('');
+  const [webhookUrl, setWebhookUrl] = useState('https://httpbin.org/post');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
