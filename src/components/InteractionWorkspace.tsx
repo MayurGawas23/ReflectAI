@@ -10,14 +10,19 @@ import {
   CheckCircle2, 
   AlertCircle,
   Tag,
-  ListTodo
+  ListTodo,
+  MapPin,
+  Bell
 } from 'lucide-react';
-import { Interaction, Message, ReflectionMode } from '../types';
+import { Interaction, Message, ReflectionMode, JournalLocation } from '../types';
+import { LocationPickerModal } from './LocationPickerModal';
+import { NotificationDispatchModal } from './NotificationDispatchModal';
 
 interface InteractionWorkspaceProps {
   interaction: Interaction | null;
   onSendMessage: (text: string, mode: ReflectionMode) => Promise<void>;
   onSummarizeCurrent: () => Promise<void>;
+  onUpdateLocation: (location: JournalLocation | null) => Promise<void>;
   loadingAI: boolean;
   error: string | null;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
@@ -28,6 +33,7 @@ export const InteractionWorkspace: React.FC<InteractionWorkspaceProps> = ({
   interaction,
   onSendMessage,
   onSummarizeCurrent,
+  onUpdateLocation,
   loadingAI,
   error,
   saveStatus,
@@ -35,6 +41,8 @@ export const InteractionWorkspace: React.FC<InteractionWorkspaceProps> = ({
 }) => {
   const [inputText, setInputText] = useState('');
   const [mode, setMode] = useState<ReflectionMode>('general');
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -62,13 +70,27 @@ export const InteractionWorkspace: React.FC<InteractionWorkspaceProps> = ({
       {/* Header bar for current reflection */}
       <div className="h-16 border-b border-stone-200 bg-white px-6 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center space-x-3 overflow-hidden">
-          <div className="w-8 h-8 rounded-lg bg-stone-100 flex items-center justify-center text-stone-700">
+          <div className="w-8 h-8 rounded-lg bg-stone-100 flex items-center justify-center text-stone-700 flex-shrink-0">
             <Sparkles className="w-4 h-4 text-amber-600" />
           </div>
           <div className="truncate">
-            <h2 className="text-sm font-semibold text-stone-900 truncate">
-              {interaction ? interaction.title : 'New Reflection & Dialogue'}
-            </h2>
+            <div className="flex items-center space-x-2">
+              <h2 className="text-sm font-semibold text-stone-900 truncate">
+                {interaction ? interaction.title : 'New Reflection & Dialogue'}
+              </h2>
+              {/* Location Badge if attached */}
+              {interaction?.location && (
+                <button
+                  onClick={() => setShowLocationModal(true)}
+                  className="cursor-pointer inline-flex items-center space-x-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10px] text-emerald-700 hover:bg-emerald-100 transition"
+                  title={`Location: ${interaction.location.placeName}`}
+                >
+                  <MapPin className="w-3 h-3" />
+                  <span className="truncate max-w-[120px]">{interaction.location.placeName}</span>
+                </button>
+              )}
+            </div>
+
             <div className="flex items-center space-x-2 text-[11px] text-stone-500">
               {saveStatus === 'saving' && (
                 <span className="flex items-center text-stone-400">
@@ -95,19 +117,51 @@ export const InteractionWorkspace: React.FC<InteractionWorkspaceProps> = ({
           </div>
         </div>
 
-        {/* Quick Summarize / Extract Insights button */}
-        {interaction && interaction.messages.length > 0 && (
+        {/* Action Controls: Attach Location & Synthesize */}
+        <div className="flex items-center space-x-2">
           <button
-            id="summarize-btn"
-            onClick={onSummarizeCurrent}
-            disabled={loadingAI}
-            className="cursor-pointer inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-stone-200 bg-stone-50 text-xs font-medium text-stone-700 hover:bg-stone-100 transition disabled:opacity-50"
-            title="Generate AI structured synthesis and action tags"
+            id="pin-location-btn"
+            type="button"
+            onClick={() => setShowLocationModal(true)}
+            className={`cursor-pointer inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition ${
+              interaction?.location
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                : 'bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100'
+            }`}
+            title="Attach or edit Google Maps reflection pin"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            <span>Synthesize Session</span>
+            <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden sm:inline">
+              {interaction?.location ? 'Location Pinned' : 'Pin Location'}
+            </span>
           </button>
-        )}
+
+          {interaction && (interaction.summary || interaction.messages.length > 0) && (
+            <button
+              id="notify-dispatch-btn"
+              type="button"
+              onClick={() => setShowNotifyModal(true)}
+              className="cursor-pointer inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-stone-200 bg-stone-50 text-xs font-medium text-stone-700 hover:bg-stone-100 transition"
+              title="Dispatch synthesis or action items to Slack, Discord, or Webhook"
+            >
+              <Bell className="w-3.5 h-3.5 text-stone-600" />
+              <span className="hidden sm:inline">Dispatch</span>
+            </button>
+          )}
+
+          {interaction && interaction.messages.length > 0 && (
+            <button
+              id="summarize-btn"
+              onClick={onSummarizeCurrent}
+              disabled={loadingAI}
+              className="cursor-pointer inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-stone-200 bg-stone-50 text-xs font-medium text-stone-700 hover:bg-stone-100 transition disabled:opacity-50"
+              title="Generate AI structured synthesis and action tags"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <span className="hidden sm:inline">Synthesize Session</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Summary / Themes Header Card if present */}
@@ -133,6 +187,12 @@ export const InteractionWorkspace: React.FC<InteractionWorkspaceProps> = ({
                 {t}
               </span>
             ))}
+            {interaction.location && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-medium border border-emerald-100">
+                <MapPin className="w-2.5 h-2.5" />
+                {interaction.location.placeName}
+              </span>
+            )}
             {interaction.actionItems && interaction.actionItems.length > 0 && (
               <div className="w-full mt-2 space-y-1">
                 <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider block">Action Items & Prompts</span>
@@ -159,14 +219,14 @@ export const InteractionWorkspace: React.FC<InteractionWorkspaceProps> = ({
               Begin your reflection
             </h3>
             <p className="text-xs text-stone-500 leading-relaxed mb-6">
-              Write down what's on your mind—a challenging decision, daily gratitude, creative idea, or stream of consciousness. Gemini will unpack and reflect with you.
+              Write down what's on your mind—a challenging decision, daily gratitude, creative idea, or setting. Gemini will unpack and reflect with you.
             </p>
 
             {/* Quick Inspiration Starters */}
             <div className="w-full space-y-2 text-left">
               {[
+                "Reflecting on the mental clarity I felt during my morning walk.",
                 "What's a current dilemma that feels difficult to resolve?",
-                "Reflecting on a recent win or lesson I learned this week.",
                 "Brainstorming the architecture and next steps for my new project."
               ].map((starter, i) => (
                 <button
@@ -280,7 +340,7 @@ export const InteractionWorkspace: React.FC<InteractionWorkspaceProps> = ({
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Write your journal entry, thought, or question... (Cmd/Ctrl + Enter to send)"
+              placeholder="Write your journal entry, thought, or setting... (Cmd/Ctrl + Enter to send)"
               className="flex-1 w-full p-3 text-sm rounded-xl border border-stone-200 bg-stone-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-stone-400 resize-none transition leading-relaxed"
             />
 
@@ -300,6 +360,23 @@ export const InteractionWorkspace: React.FC<InteractionWorkspaceProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Location Picker Modal */}
+      {showLocationModal && (
+        <LocationPickerModal
+          currentLocation={interaction?.location}
+          onSaveLocation={onUpdateLocation}
+          onClose={() => setShowLocationModal(false)}
+        />
+      )}
+
+      {/* External Notification Dispatch Modal */}
+      {showNotifyModal && interaction && (
+        <NotificationDispatchModal
+          interaction={interaction}
+          onClose={() => setShowNotifyModal(false)}
+        />
+      )}
     </div>
   );
 };

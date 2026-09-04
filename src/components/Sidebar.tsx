@@ -8,7 +8,8 @@ import {
   Sparkles,
   Search,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  MapPin
 } from 'lucide-react';
 import { Interaction } from '../types';
 
@@ -116,6 +117,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {entry.themes && entry.themes.length > 0 && (
                       <span className="text-[9px] px-1.5 py-0.5 rounded bg-stone-200/60 text-stone-600 truncate max-w-[100px]">
                         {entry.themes[0]}
+                      </span>
+                    )}
+                    {entry.location && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 truncate max-w-[90px] flex items-center gap-0.5 border border-emerald-100">
+                        <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
+                        <span className="truncate">{entry.location.placeName}</span>
                       </span>
                     )}
                   </div>

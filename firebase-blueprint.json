@@ -30,6 +30,10 @@
           "type": "array",
           "description": "List of key cognitive theme tags"
         },
+        "location": {
+          "type": "object",
+          "description": "Optional attached geographic place where the reflection occurred"
+        },
         "messages": {
           "type": "array",
           "description": "Chronological multi-turn interaction dialogue messages"
@@ -44,12 +48,43 @@
         }
       },
       "required": ["id", "userId", "title", "messages", "createdAt", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Registry of authorized administrators with RBAC privileges",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "grantedAt": { "type": "number" },
+        "role": { "type": "string" }
+      },
+      "required": ["email", "role"]
+    },
+    "SystemTelemetry": {
+      "title": "SystemTelemetry",
+      "description": "Anonymized aggregate usage metrics, model performance, and system health",
+      "type": "object",
+      "properties": {
+        "totalReflectionsTracked": { "type": "number" },
+        "totalSynthesizedSessions": { "type": "number" },
+        "totalLocationsPinned": { "type": "number" },
+        "activeUsersCount": { "type": "number" },
+        "lastUpdated": { "type": "number" }
+      }
     }
   },
   "firestore": {
     "/users/{userId}/interactions/{interactionId}": {
       "schema": "Interaction",
       "description": "User-isolated journal entries and reflection conversations with Gemini"
+    },
+    "/admins/{adminId}": {
+      "schema": "AdminRecord",
+      "description": "Registry of verified platform administrators"
+    },
+    "/system_telemetry/{metricId}": {
+      "schema": "SystemTelemetry",
+      "description": "Aggregated platform telemetry data accessible solely by admins"
     }
   }
 }

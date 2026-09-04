@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import crypto from 'crypto';
 import { GoogleGenAI } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
@@ -89,11 +90,15 @@ app.post('/api/gemini/reflect', async (req: Request, res: Response) => {
   try {
     // Defensive payload ingestion
     const body = req.body && typeof req.body === 'object' ? req.body : {};
-    const { messages = [], mode = 'general', currentEntry = '' } = body;
+    const { messages = [], mode = 'general', currentEntry = '', location } = body;
 
     if (!currentEntry && messages.length === 0) {
       return res.status(400).json({ error: 'Journal reflection entry or messages cannot be empty.' });
     }
+
+    const locationContext = location && location.placeName 
+      ? `\nGeographic / Environmental Ambiance: The user is writing from "${location.placeName}"${location.formattedAddress ? ` (${location.formattedAddress})` : ''}. If relevant, gently draw upon the mood, atmosphere, or grounding stillness of this setting to enrich the reflection.`
+      : '';
 
     const systemInstruction = `You are an insightful, empathetic, and thoughtful AI Journal & Reflection Partner.
 Your purpose is to help the user unpack their thoughts, gain clarity, find fresh perspectives, brainstorm solutions, and summarize their ideas.
@@ -104,7 +109,7 @@ Guidelines:
 4. If in 'brainstorm' mode: Provide actionable angles, creative thought experiments, and next steps.
 5. If in 'summary' mode: Provide an executive summary of core themes, emotional tone, and key decisions.
 6. If in 'coaching' mode: Offer gentle, introspective questions to challenge limiting assumptions.
-Current Mode: ${mode}`;
+Current Mode: ${mode}${locationContext}`;
 
     // Transform conversation history into Gemini format
     const contents: any[] = [];
@@ -190,6 +195,127 @@ Output raw valid JSON only.`;
     console.error('[API /api/gemini/summarize Error]', error);
     return res.status(500).json({
       error: error?.message || 'Failed to summarize reflection with Gemini.'
+    });
+  }
+});
+
+// API Route: Dispatch External Notifications (Slack / Discord / Webhook)
+app.post('/api/notifications/dispatch', async (req: Request, res: Response) => {
+  try {
+    const { title, summary, actionItems = [], themes = [], targetService = 'webhook', customWebhookUrl } = req.body || {};
+
+    if (!title && !summary) {
+      return res.status(400).json({ error: 'Title or summary is required for dispatch.' });
+    }
+
+    // Determine target webhook URL (from server secret or client override if provided)
+    const destinationUrl = customWebhookUrl || process.env.NOTIFICATION_WEBHOOK_URL;
+    const hmacSecret = process.env.NOTIFICATION_HMAC_SECRET || 'e9aec066c56bdf0d83b1629404b56e4c62a094a10ba3f072b2ef0f0fe76cf5bc';
+
+    // Format payload according to target service schema
+    let outgoingBody: any;
+
+    if (targetService === 'slack') {
+      outgoingBody = {
+        text: `*ReflectAI Digest: ${title || 'Reflection Session'}*`,
+        blocks: [
+          {
+            type: 'header',
+            text: { type: 'plain_text', text: `✨ ReflectAI: ${title || 'Reflection Session'}` }
+          },
+          {
+            type: 'section',
+            text: { type: 'mrkdwn', text: `>${summary || 'No summary available'}` }
+          },
+          ...(actionItems.length > 0 ? [{
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `*Action Items:*\n${actionItems.map((i: string) => `• ${i}`).join('\n')}`
+            }
+          }] : []),
+          ...(themes.length > 0 ? [{
+            type: 'context',
+            elements: themes.map((t: string) => ({ type: 'mrkdwn', text: `\`#${t}\`` }))
+          }] : [])
+        ]
+      };
+    } else if (targetService === 'discord') {
+      outgoingBody = {
+        content: `**ReflectAI Digest:** ${title || 'Reflection Session'}`,
+        embeds: [
+          {
+            title: title || 'Session Synthesis',
+            description: summary || 'Reflection synthesis',
+            color: 0x059669,
+            fields: [
+              ...(actionItems.length > 0 ? [{
+                name: 'Action Items',
+                value: actionItems.map((i: string) => `• ${i}`).join('\n')
+              }] : []),
+              ...(themes.length > 0 ? [{
+                name: 'Themes',
+                value: themes.map((t: string) => `\`${t}\``).join(' ')
+              }] : [])
+            ],
+            footer: { text: 'ReflectAI Secure Notification Dispatch' },
+            timestamp: new Date().toISOString()
+          }
+        ]
+      };
+    } else {
+      // Standard Generic Webhook
+      outgoingBody = {
+        event: 'reflection.synthesized',
+        timestamp: Date.now(),
+        data: {
+          title,
+          summary,
+          actionItems,
+          themes
+        }
+      };
+    }
+
+    const payloadString = JSON.stringify(outgoingBody);
+
+    // Generate cryptographic HMAC SHA-256 signature
+    const signature = crypto
+      .createHmac('sha256', hmacSecret)
+      .update(payloadString)
+      .digest('hex');
+
+    // If destinationUrl is configured, send the HTTP POST dispatch
+    let externalStatus = 'simulated';
+    if (destinationUrl && destinationUrl.startsWith('http')) {
+      try {
+        const dispatchRes = await fetch(destinationUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-ReflectAI-Signature': `sha256=${signature}`,
+            'User-Agent': 'ReflectAI-Notifier/1.0'
+          },
+          body: payloadString
+        });
+        externalStatus = dispatchRes.ok ? 'delivered' : `failed_${dispatchRes.status}`;
+      } catch (err: any) {
+        externalStatus = `network_error: ${err.message}`;
+      }
+    }
+
+    return res.json({
+      status: 'dispatched',
+      externalStatus,
+      targetService,
+      destinationUrlConfigured: Boolean(destinationUrl),
+      signature: `sha256=${signature.slice(0, 16)}...`,
+      payloadPreview: outgoingBody
+    });
+  } catch (error: any) {
+    console.error('[API /api/notifications/dispatch Error]', error);
+    return res.status(500).json({
+      error: error?.message || 'Failed to dispatch notification.'
     });
   }
 });

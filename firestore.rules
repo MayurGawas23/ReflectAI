@@ -2,8 +2,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // User interactions: strictly isolated to the authenticated owner
+    // Critical privacy constraint: Even admins cannot read personal reflections
     match /users/{userId}/interactions/{interactionId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Role-Based Access Control: Admin registry
+    // Admins can read admin documents; writes are restricted to existing authorized admins
+    match /admins/{adminId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Aggregated telemetry and system metrics (read-only for authenticated admins)
+    match /system_telemetry/{metricId} {
+      allow read: if request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      allow write: if request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
     // Default deny all other paths

@@ -9,13 +9,15 @@ import { auth, googleProvider } from './lib/firebase';
 import { 
   fetchUserInteractions, 
   saveUserInteraction, 
-  deleteUserInteraction 
+  deleteUserInteraction,
+  checkIsAdmin
 } from './lib/firestoreService';
-import { Interaction, Message, ReflectionMode, UserProfile } from './types';
+import { Interaction, Message, ReflectionMode, UserProfile, JournalLocation } from './types';
 import { AuthView } from './components/AuthView';
 import { Sidebar } from './components/Sidebar';
 import { InteractionWorkspace } from './components/InteractionWorkspace';
-import { BookOpen, LogOut, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { AdminDashboardModal } from './components/AdminDashboardModal';
+import { BookOpen, LogOut, ShieldCheck, User as UserIcon, BarChart3 } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -32,6 +34,10 @@ export default function App() {
   const [loadingAI, setLoadingAI] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
 
+  // Admin & RBAC Console State
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+
   // Listen to Auth state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -39,9 +45,12 @@ export default function App() {
       setAuthLoading(false);
       if (user) {
         await loadInteractions(user.uid);
+        const adminStatus = await checkIsAdmin(user.uid);
+        setIsAdmin(adminStatus);
       } else {
         setInteractions([]);
         setCurrentId(null);
+        setIsAdmin(false);
       }
     });
 
@@ -163,6 +172,7 @@ export default function App() {
           messages: workingInteraction.messages,
           mode,
           currentEntry: text,
+          location: workingInteraction.location,
         }),
       });
 
@@ -247,6 +257,31 @@ export default function App() {
       setSaveStatus('error');
     } finally {
       setLoadingAI(false);
+    }
+  };
+
+  // Update or attach location to current reflection
+  const handleUpdateLocation = async (location: JournalLocation | null) => {
+    if (!currentUser || !currentInteraction) return;
+
+    const updatedInteraction: Interaction = {
+      ...currentInteraction,
+      location: location || undefined,
+      updatedAt: Date.now(),
+    };
+
+    setInteractions((prev) =>
+      prev.map((i) => (i.id === updatedInteraction.id ? updatedInteraction : i))
+    );
+    setSaveStatus('saving');
+
+    try {
+      await saveUserInteraction(currentUser.uid, updatedInteraction);
+      setSaveStatus('saved');
+    } catch (err: any) {
+      console.error('Error saving location:', err);
+      setAppError('Failed to save reflection location.');
+      setSaveStatus('error');
     }
   };
 
@@ -342,6 +377,21 @@ export default function App() {
             </div>
           </div>
 
+          {/* Admin RBAC Console Trigger */}
+          <button
+            id="admin-console-btn"
+            onClick={() => setShowAdminModal(true)}
+            className={`cursor-pointer inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition ${
+              isAdmin 
+                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100'
+                : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
+            }`}
+            title="Open Admin Telemetry & Health Console"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="hidden sm:inline">Admin Console</span>
+          </button>
+
           <button
             id="signout-btn"
             onClick={handleSignOut}
@@ -368,12 +418,31 @@ export default function App() {
           interaction={currentInteraction}
           onSendMessage={handleSendMessage}
           onSummarizeCurrent={handleSummarizeCurrent}
+          onUpdateLocation={handleUpdateLocation}
           loadingAI={loadingAI}
           error={appError}
           saveStatus={saveStatus}
           onRetrySave={handleRetrySave}
         />
       </div>
+
+      {/* Admin RBAC & Telemetry Modal */}
+      {showAdminModal && (
+        <AdminDashboardModal
+          user={{
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            photoURL: currentUser.photoURL,
+            isAdmin,
+          }}
+          isAdmin={isAdmin}
+          onClose={() => setShowAdminModal(false)}
+          onAdminGranted={() => {
+            setIsAdmin(true);
+          }}
+        />
+      )}
     </div>
   );
 }

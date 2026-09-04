@@ -4,6 +4,13 @@ export interface Message {
   timestamp: number;
 }
 
+export interface JournalLocation {
+  lat: number;
+  lng: number;
+  placeName: string;
+  formattedAddress?: string;
+}
+
 export interface Interaction {
   id: string;
   userId: string;
@@ -11,6 +18,7 @@ export interface Interaction {
   summary?: string;
   actionItems?: string[];
   themes?: string[];
+  location?: JournalLocation;
   messages: Message[];
   createdAt: number;
   updatedAt: number;
@@ -23,4 +31,25 @@ export interface UserProfile {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+  isAdmin?: boolean;
+}
+
+export interface SystemTelemetry {
+  totalReflectionsTracked: number;
+  totalSynthesizedSessions: number;
+  totalLocationsPinned: number;
+  activeUsersCount: number;
+  lastUpdated: number;
+  modelFleetStatus: {
+    primary: string;
+    fallbacks: string[];
+    geminiHealth: 'healthy' | 'degraded' | 'offline';
+  };
+  recentActivityLogs: {
+    id: string;
+    timestamp: number;
+    action: string;
+    anonymizedUserHash: string;
+    mode: string;
+  }[];
 }

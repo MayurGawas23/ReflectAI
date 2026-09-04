@@ -1,7 +1,9 @@
 {
   "name": "AI Journal & Reflections",
   "description": "A private user-authenticated journal and reflection workspace powered by Firebase Authentication, Cloud Firestore, and Gemini.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": [
+    "geolocation"
+  ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]

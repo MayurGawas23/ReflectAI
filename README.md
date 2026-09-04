@@ -14,10 +14,21 @@ GitHub Repository: [https://github.com/MayurGawas23/ReflectAI.git](https://githu
 2. **User Data Isolation (Zero Insecure Defaults)**:
    - All reflections and dialogue interactions are stored under `/users/{userId}/interactions/{interactionId}`.
    - Enforced by owner-bound Firestore Security Rules: `allow read, write: if request.auth != null && request.auth.uid == userId;`.
-3. **Resilient Server-Side Gemini API Proxy**:
+3. **Location-Aware Reflections (Google Maps Platform)**:
+   - Interactive place pinning with device GPS detection, coordinates, and reflection sanctuary tags.
+   - Grounded Gemini reframing that incorporates the atmospheric setting and peaceful environment into reflection responses.
+   - Built using `@vis.gl/react-google-maps` with Map ID and Advanced Markers.
+4. **Admin Telemetry & Role-Based Access Control (RBAC)**:
+   - Separate admin registry path (`/admins/{adminId}`) protecting administrative capabilities.
+   - Zero-Trust Privacy Guarantee: Firestore security rules strictly prohibit admins from accessing private reflection texts under `/users/{userId}/*`. Only aggregate anonymized metrics and model fleet statuses are visible in the console.
+5. **External Notifications & Insights Dispatch**:
+   - Outbound dispatch to Slack (BlockKit formatted), Discord (Rich Embeds), and generic REST webhooks.
+   - Cryptographic HMAC-SHA256 signature verification headers (`X-ReflectAI-Signature`).
+   - Privacy-sanitized payloads: only synthesized executive summaries, thematic tags, and action items are transmitted—raw dialogue content is never exposed.
+6. **Resilient Server-Side Gemini API Proxy**:
    - `GEMINI_API_KEY` remains strictly on the server (never exposed to client bundles).
    - Automated Fallback Ladder (`gemini-2.5-flash` → `gemini-2.5-flash-lite` → `gemini-flash-latest` → `gemini-2.5-pro`) handling rate limits, transient downtime, and model failovers gracefully.
-4. **Zero-Crash Payload Hygiene**:
+7. **Zero-Crash Payload Hygiene**:
    - Strict undefined-stripping before Firestore document persistence.
 
 ---
